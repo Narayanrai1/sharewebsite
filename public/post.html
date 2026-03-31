@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="NitrklShare — View post">
+  <title>Post — NitrklShare</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="animated-bg"></div>
+
+  <div class="app-layout">
+    <!-- Top Navigation Bar -->
+    <header class="top-bar">
+      <a href="/dashboard.html" class="logo">
+        <div class="logo-mark">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20.665 3.717l-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42 10.532-6.645c.498-.303.953-.14.579.192l-8.533 7.701h-.002l.002.001-.314 4.692c.46 0 .663-.211.921-.46l2.211-2.15 4.599 3.397c.848.467 1.457.227 1.668-.785l3.019-14.228c.309-1.239-.473-1.8-1.282-1.434z"/>
+          </svg>
+        </div>
+        <span>NitrklShare</span>
+      </a>
+
+      <div class="search-container">
+        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="m21 21-4.3-4.3"></path>
+        </svg>
+        <input type="text" id="search-input" placeholder="Search posts by title, description, or content..." autocomplete="off">
+      </div>
+
+      <div class="profile-area">
+        <div class="profile-avatar" id="nav-avatar" title="Profile">
+          <span class="avatar-initial" id="nav-avatar-initial"></span>
+        </div>
+
+        <div class="profile-dropdown" id="profile-dropdown">
+          <div class="dropdown-header">
+            <div class="name" id="dropdown-name"></div>
+            <div class="username" id="dropdown-username"></div>
+          </div>
+          <button class="dropdown-item" id="btn-my-profile">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+            My Profile
+          </button>
+          <button class="dropdown-item danger" id="btn-logout">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            Sign Out
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content post-page-content">
+      <!-- Back button -->
+      <a href="/dashboard.html" class="back-link" id="back-link">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
+        Back to Feed
+      </a>
+
+      <!-- Loading -->
+      <div id="post-loading" class="post-page-loading">
+        <div class="skeleton skeleton-thumb" style="height:400px;border-radius:var(--radius-lg);margin-bottom:var(--space-lg);"></div>
+        <div class="skeleton skeleton-line" style="width:60%;height:32px;margin-bottom:var(--space-md);"></div>
+        <div class="skeleton skeleton-line" style="width:40%;height:18px;margin-bottom:var(--space-xl);"></div>
+        <div class="skeleton skeleton-line" style="width:100%;height:16px;margin-bottom:var(--space-sm);"></div>
+        <div class="skeleton skeleton-line" style="width:80%;height:16px;"></div>
+      </div>
+
+      <!-- Post Content (hidden until loaded) -->
+      <article class="post-page-article hidden" id="post-article">
+        <!-- Media Section — full width, no shrinking -->
+        <div class="post-page-media" id="post-media"></div>
+
+        <!-- Post Info -->
+        <div class="post-page-info">
+          <h1 class="post-page-title" id="post-title"></h1>
+
+          <div class="post-page-meta" id="post-meta"></div>
+
+          <div class="post-page-description" id="post-description"></div>
+
+          <div class="post-page-text" id="post-text" style="display:none;"></div>
+        </div>
+
+        <!-- Actions Bar -->
+        <div class="post-page-actions">
+          <button class="action-btn" id="like-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+            </svg>
+            <span id="like-count">0</span>
+          </button>
+          <button class="action-btn" id="comment-count-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <span id="comment-count">0</span>
+          </button>
+          <button class="action-btn" id="delete-btn" style="display:none; margin-left:auto;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            Delete
+          </button>
+        </div>
+
+        <!-- Comments Section — full width, separate from media -->
+        <div class="post-page-comments">
+          <h3>Comments</h3>
+          <div class="comment-input-area">
+            <input type="text" id="comment-input" placeholder="Write a comment...">
+            <button class="btn btn-primary" id="submit-comment" style="padding:10px 16px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </div>
+          <div class="comment-list" id="comment-list"></div>
+        </div>
+      </article>
+
+      <!-- Error State -->
+      <div class="empty-state hidden" id="error-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <h3>Post not found</h3>
+        <p>This post may have been deleted or the link is incorrect.</p>
+        <a href="/dashboard.html" class="btn btn-primary" style="margin-top:var(--space-md);">Back to Feed</a>
+      </div>
+    </main>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/post.js"></script>
+</body>
+</html>

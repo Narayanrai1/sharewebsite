@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="NitrklShare — Discover and share amazing content">
+  <title>Dashboard — NitrklShare</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="animated-bg"></div>
+
+  <div class="app-layout">
+    <!-- Top Navigation Bar -->
+    <header class="top-bar">
+      <a href="/dashboard.html" class="logo">
+        <div class="logo-mark">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20.665 3.717l-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42 10.532-6.645c.498-.303.953-.14.579.192l-8.533 7.701h-.002l.002.001-.314 4.692c.46 0 .663-.211.921-.46l2.211-2.15 4.599 3.397c.848.467 1.457.227 1.668-.785l3.019-14.228c.309-1.239-.473-1.8-1.282-1.434z"/>
+          </svg>
+        </div>
+        <span>NitrklShare</span>
+      </a>
+
+      <div class="search-container">
+        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="m21 21-4.3-4.3"></path>
+        </svg>
+        <input type="text" id="search-input" placeholder="Search posts by title, description, or content..." autocomplete="off">
+      </div>
+
+      <div class="profile-area">
+        <div class="profile-avatar" id="nav-avatar" title="Profile">
+          <span class="avatar-initial" id="nav-avatar-initial"></span>
+        </div>
+
+        <div class="profile-dropdown" id="profile-dropdown">
+          <div class="dropdown-header">
+            <div class="name" id="dropdown-name"></div>
+            <div class="username" id="dropdown-username"></div>
+          </div>
+          <button class="dropdown-item" id="btn-my-profile">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+            My Profile
+          </button>
+          <button class="dropdown-item danger" id="btn-logout">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            Sign Out
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Search Results Header (hidden by default) -->
+      <div id="search-results-header" class="search-results-header hidden">
+        <h2>Search Results for "<span id="search-query-display"></span>"</h2>
+        <span class="result-count" id="search-result-count"></span>
+        <button class="btn btn-ghost" id="clear-search">✕ Clear</button>
+      </div>
+
+      <!-- Feed Header -->
+      <div id="feed-header" class="section-header">
+        <h2>🔥 Trending Feed</h2>
+      </div>
+
+      <!-- Post Feed -->
+      <div class="feed-grid" id="feed-grid">
+        <!-- Post cards injected here -->
+      </div>
+
+      <!-- Loading skeleton -->
+      <div id="feed-loading" class="feed-grid">
+        <div class="skeleton-card"><div class="skeleton skeleton-thumb"></div><div class="skeleton-body"><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line short"></div></div></div>
+        <div class="skeleton-card"><div class="skeleton skeleton-thumb"></div><div class="skeleton-body"><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line short"></div></div></div>
+        <div class="skeleton-card"><div class="skeleton skeleton-thumb"></div><div class="skeleton-body"><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line short"></div></div></div>
+        <div class="skeleton-card"><div class="skeleton skeleton-thumb"></div><div class="skeleton-body"><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line short"></div></div></div>
+        <div class="skeleton-card"><div class="skeleton skeleton-thumb"></div><div class="skeleton-body"><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line short"></div></div></div>
+        <div class="skeleton-card"><div class="skeleton skeleton-thumb"></div><div class="skeleton-body"><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line short"></div></div></div>
+      </div>
+
+      <!-- Empty State -->
+      <div id="empty-state" class="empty-state hidden">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+        </svg>
+        <h3>No posts yet</h3>
+        <p>Be the first to share something! Click the + button to create a post.</p>
+      </div>
+
+      <!-- Load More -->
+      <div id="load-more-container" class="text-center mt-md hidden">
+        <button class="btn btn-secondary" id="load-more-btn">Load More</button>
+      </div>
+    </main>
+  </div>
+
+  <!-- Floating Action Button -->
+  <button class="fab" id="fab-create" title="Create Post">
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 5v14M5 12h14" stroke="white" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+    </svg>
+  </button>
+
+  <!-- Create Post Modal -->
+  <div class="modal-overlay" id="create-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Create Post</h3>
+        <button class="btn-icon" id="close-create-modal">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="create-post-form" novalidate>
+          <!-- Content Type Selector -->
+          <div class="content-type-selector" id="content-type-grid">
+            <button type="button" class="type-option active" data-type="text">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+              Text
+            </button>
+            <button type="button" class="type-option" data-type="image">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+              Image
+            </button>
+            <button type="button" class="type-option" data-type="video">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+              </svg>
+              Video
+            </button>
+            <button type="button" class="type-option" data-type="audio">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18V5l12-2v13"></path>
+                <circle cx="6" cy="18" r="3"></circle>
+                <circle cx="18" cy="16" r="3"></circle>
+              </svg>
+              Audio
+            </button>
+            <button type="button" class="type-option" data-type="pdf">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <path d="M9 15v-2a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2H9z"></path>
+              </svg>
+              PDF
+            </button>
+          </div>
+
+          <div class="form-group">
+            <label for="post-title">Title *</label>
+            <input type="text" id="post-title" class="form-input" placeholder="Give your post a title" required>
+          </div>
+
+          <div class="form-group">
+            <label for="post-description">Description</label>
+            <input type="text" id="post-description" class="form-input" placeholder="Short description (optional)">
+          </div>
+
+          <!-- Text Content (for text posts) -->
+          <div class="form-group" id="text-content-group">
+            <label for="post-text">Content *</label>
+            <textarea id="post-text" class="form-input" placeholder="Write your content here..." rows="6"></textarea>
+          </div>
+
+          <!-- File Upload (for media posts) -->
+          <div id="media-upload-group" class="hidden">
+            <div class="file-upload-area" id="file-upload-area">
+              <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <p>Drag & drop or click to upload</p>
+              <p class="hint" id="upload-hint">Supports images up to 50MB</p>
+            </div>
+            <input type="file" id="file-input" class="hidden">
+
+            <div id="file-preview" class="file-preview hidden">
+              <img id="preview-thumb" src="" alt="preview">
+              <div class="file-info">
+                <div class="file-name" id="preview-name"></div>
+                <div class="file-size" id="preview-size"></div>
+              </div>
+              <button type="button" class="btn-icon" id="remove-file" title="Remove file">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            <!-- PDF first page preview (auto-generated) -->
+            <div id="pdf-page-preview" class="hidden" style="margin-bottom:var(--space-lg);">
+              <label style="font-size:0.85rem;font-weight:500;color:var(--text-secondary);margin-bottom:var(--space-sm);display:block;">PDF First Page Preview</label>
+              <canvas id="pdf-canvas" style="max-width:100%;border-radius:var(--radius-md);border:1px solid var(--border-card);"></canvas>
+            </div>
+
+            <!-- Optional thumbnail for Video / Audio / PDF -->
+            <div id="optional-thumbnail-group" class="hidden" style="margin-top:var(--space-md);">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-sm);">
+                <label style="font-size:0.85rem;font-weight:500;color:var(--text-secondary);">Custom Thumbnail <span style="color:var(--text-muted);">(optional)</span></label>
+              </div>
+              <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:var(--space-sm);">Upload a custom thumbnail image, or we'll use a default one.</p>
+              <div class="file-upload-area" id="thumb-upload-area" style="padding:var(--space-lg);">
+                <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:32px;height:32px;">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                  <polyline points="21 15 16 10 5 21"></polyline>
+                </svg>
+                <p style="font-size:0.85rem;">Click to add a thumbnail image</p>
+              </div>
+              <input type="file" id="thumb-file-input" class="hidden" accept="image/*">
+              <div id="thumb-preview" class="file-preview hidden" style="margin-top:var(--space-sm);">
+                <img id="thumb-preview-img" src="" alt="thumb" style="width:80px;height:60px;object-fit:cover;border-radius:var(--radius-sm);">
+                <div class="file-info">
+                  <div class="file-name" id="thumb-preview-name"></div>
+                  <div class="file-size" id="thumb-preview-size"></div>
+                </div>
+                <button type="button" class="btn-icon" id="remove-thumb" title="Remove thumbnail">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancel-create">Cancel</button>
+        <button class="btn btn-primary" id="submit-post">
+          <span class="spinner"></span>
+          <span class="btn-text">Publish</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Post Detail Modal -->
+  <div class="modal-overlay" id="post-detail-modal">
+    <div class="modal post-detail-modal">
+      <div class="modal-header">
+        <h3 id="detail-title"></h3>
+        <button class="btn-icon" id="close-detail-modal">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Media Section -->
+      <div class="post-detail-media" id="detail-media"></div>
+
+      <!-- Content -->
+      <div class="post-detail-content">
+        <div class="post-meta" id="detail-meta"></div>
+        <div class="post-description" id="detail-description"></div>
+        <div class="post-text" id="detail-text" style="display:none"></div>
+      </div>
+
+      <!-- Actions -->
+      <div class="post-detail-actions">
+        <button class="action-btn" id="detail-like-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+          </svg>
+          <span id="detail-like-count">0</span>
+        </button>
+        <button class="action-btn" id="detail-comment-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <span id="detail-comment-count">0</span>
+        </button>
+        <button class="action-btn" id="detail-delete-btn" style="display:none; margin-left:auto;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+          Delete
+        </button>
+      </div>
+
+      <!-- Comments Section -->
+      <div class="comments-section">
+        <h4>Comments</h4>
+        <div class="comment-input-area">
+          <input type="text" id="comment-input" placeholder="Write a comment...">
+          <button class="btn btn-primary" id="submit-comment" style="padding:10px 16px">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+        <div class="comment-list" id="comment-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    // Set PDF.js worker
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+  </script>
+  <script src="/js/api.js"></script>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>
