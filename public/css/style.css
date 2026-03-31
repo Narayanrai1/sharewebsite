@@ -1143,6 +1143,28 @@ textarea.form-input {
 .comment-item {
   display: flex;
   gap: var(--space-sm);
+  align-items: flex-start;
+}
+
+.comment-item .mini-avatar {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: var(--radius-full);
+  background: var(--gradient-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: white;
+  overflow: hidden;
+}
+
+.comment-item .mini-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .comment-item .comment-body {
