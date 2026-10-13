@@ -10,7 +10,8 @@ const postRoutes = require('./routes/posts');
 const searchRoutes = require('./routes/search');
 
 const errorHandler = require('./middleware/errorHandler');
-
+//database
+const postgres = require('./db-postgres');
 const app = express();
 const PORT = process.env.PORT || 3000;
 

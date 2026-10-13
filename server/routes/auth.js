@@ -5,7 +5,11 @@ const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { users, posts } = require('../db');
+
+//
+// const { users, posts } = require('../db');
+const pool = require('../db-postgres');
+//
 const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
@@ -62,25 +66,54 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
-    const existingEmail = await users.findOne({ email: email.toLowerCase() });
-    const existingUser = await users.findOne({ username });
-    if (existingEmail || existingUser) {
-      return res.status(409).json({ error: 'Username or email already taken' });
+    // const existingEmail = await users.findOne({ email: email.toLowerCase() });
+    // const existingUser = await users.findOne({ username });
+    // if (existingEmail || existingUser) {
+    //   return res.status(409).json({ error: 'Username or email already taken' });
+    // }
+
+
+    const existingUser = await pool.query(
+    `SELECT id FROM users
+     WHERE email = $1 OR username = $2`,
+    [email.toLowerCase(), username]
+    );
+
+    if (existingUser.rows.length > 0) {
+        return res.status(409).json({
+            error: 'Username or email already taken'
+        });
     }
 
     const id = uuidv4();
     const password_hash = bcrypt.hashSync(password, 10);
 
-    const newUser = await users.insert({
-      id,
-      username,
-      email: email.toLowerCase(),
-      password_hash,
-      display_name,
-      bio: '',
-      avatar_url: '',
-      created_at: new Date().toISOString()
-    });
+    // const newUser = await users.insert({
+    //   id,
+    //   username,
+    //   email: email.toLowerCase(),
+    //   password_hash,
+    //   display_name,
+    //   bio: '',
+    //   avatar_url: '',
+    //   created_at: new Date().toISOString()
+    // });
+
+  await pool.query(
+  `INSERT INTO users
+   (id, username, email, password_hash, display_name, bio, avatar_url, created_at)
+   VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+  [
+    id,
+    username,
+    email.toLowerCase(),
+    password_hash,
+    display_name,
+    '',
+    '',
+    new Date()
+  ]
+  );
 
     const user = { id, username, email: email.toLowerCase(), display_name };
     const token = generateToken(user);
