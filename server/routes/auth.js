@@ -134,20 +134,34 @@ router.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+      return res.status(400).json({
+        error: 'Email and password are required'
+      });
     }
 
-    const user = await users.findOne({ email: email.toLowerCase() });
+    const result = await pool.query(
+      `SELECT * FROM users WHERE email = $1`,
+      [email.toLowerCase()]
+    );
+
+    const user = result.rows[0];
+
     if (!user) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return res.status(401).json({
+        error: 'Invalid email or password'
+      });
     }
 
     const valid = bcrypt.compareSync(password, user.password_hash);
+
     if (!valid) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return res.status(401).json({
+        error: 'Invalid email or password'
+      });
     }
 
     const token = generateToken(user);
+
     res.json({
       token,
       user: {
@@ -159,6 +173,7 @@ router.post('/login', async (req, res) => {
         avatar_url: user.avatar_url
       }
     });
+
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Server error' });
