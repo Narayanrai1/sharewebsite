@@ -183,12 +183,30 @@ router.post('/login', async (req, res) => {
 // Get current user
 router.get('/me', authMiddleware, async (req, res) => {
   try {
-    const user = await users.findOne({ id: req.user.id });
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    const userResult = await pool.query(
+      `SELECT * FROM users WHERE id = $1`,
+      [req.user.id]
+    );
 
-    const userPosts = await posts.find({ user_id: req.user.id });
+    const user = userResult.rows[0];
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const postsResult = await pool.query(
+      `SELECT like_count FROM posts WHERE user_id = $1`,
+      [req.user.id]
+    );
+
+    const userPosts = postsResult.rows;
+
     const postCount = userPosts.length;
-    const likeCount = userPosts.reduce((sum, p) => sum + (p.like_count || 0), 0);
+
+    const likeCount = userPosts.reduce(
+      (sum, p) => sum + (p.like_count || 0),
+      0
+    );
 
     res.json({
       id: user.id,
@@ -201,6 +219,7 @@ router.get('/me', authMiddleware, async (req, res) => {
       post_count: postCount,
       total_likes: likeCount
     });
+
   } catch (err) {
     console.error('Get me error:', err);
     res.status(500).json({ error: 'Server error' });
