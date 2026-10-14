@@ -283,8 +283,33 @@ router.put('/profile', authMiddleware, avatarUpload.single('avatar'), async (req
       return res.status(400).json({ error: 'No fields to update' });
     }
 
-    await users.update({ id: req.user.id }, { $set: updates });
-    const user = await users.findOne({ id: req.user.id });
+    // await users.update({ id: req.user.id }, { $set: updates });
+    // const user = await users.findOne({ id: req.user.id });
+    const fields = [];
+    const values = [];
+    let index = 1;
+
+    for (const [key, value] of Object.entries(updates)) {
+      fields.push(`${key} = $${index}`);
+      values.push(value);
+      index++;
+    }
+
+    values.push(req.user.id);
+
+    await pool.query(
+      `UPDATE users
+      SET ${fields.join(', ')}
+      WHERE id = $${index}`,
+      values
+    );
+
+    const userResult = await pool.query(
+      `SELECT * FROM users WHERE id = $1`,
+      [req.user.id]
+    );
+
+    const user = userResult.rows[0];
 
     res.json({
       id: user.id,
