@@ -229,10 +229,25 @@ router.get('/me', authMiddleware, async (req, res) => {
 // Get user by username
 router.get('/user/:username', async (req, res) => {
   try {
-    const user = await users.findOne({ username: req.params.username });
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    // const user = await users.findOne({ username: req.params.username });
+    // if (!user) return res.status(404).json({ error: 'User not found' });
+    const userResult = await pool.query(
+    `SELECT * FROM users WHERE username = $1`,
+    [req.params.username]
+    );
 
-    const userPosts = await posts.find({ user_id: user.id });
+    const user = userResult.rows[0];
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    // const userPosts = await posts.find({ user_id: user.id });
+    const postsResult = await pool.query(
+    `SELECT like_count FROM posts WHERE user_id = $1`,
+    [user.id]
+    );
+
+    const userPosts = postsResult.rows;
     const postCount = userPosts.length;
     const likeCount = userPosts.reduce((sum, p) => sum + (p.like_count || 0), 0);
 
