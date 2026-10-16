@@ -3,7 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-// const { users, posts, likes, comments } = require('../db');
+const { users, posts, likes, comments } = require('../db');
 const pool = require('../db-postgres');
 const { authMiddleware, optionalAuth } = require('../middleware/auth');
 
@@ -197,7 +197,15 @@ router.get('/feed', optionalAuth, async (req, res) => {
 // Get single post
 router.get('/:id', optionalAuth, async (req, res) => {
   try {
-    const post = await posts.findOne({ id: req.params.id });
+    // const post = await posts.findOne({ id: req.params.id });
+    const postResult = await pool.query(
+    `SELECT *
+     FROM posts
+     WHERE id = $1`,
+    [req.params.id]
+    );
+
+     const post = postResult.rows[0];
     if (!post) return res.status(404).json({ error: 'Post not found' });
 
     const userId = req.user ? req.user.id : null;
@@ -212,15 +220,44 @@ router.get('/:id', optionalAuth, async (req, res) => {
 // Get user's posts
 router.get('/user/:username', optionalAuth, async (req, res) => {
   try {
-    const user = await users.findOne({ username: req.params.username });
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    // const user = await users.findOne({ username: req.params.username });
+    // if (!user) return res.status(404).json({ error: 'User not found' });
+    const userResult = await pool.query(
+    `SELECT *
+     FROM users
+     WHERE username = $1`,
+    [req.params.username]
+    );
 
+    const user = userResult.rows[0];
+
+    if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+    }
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    const userPosts = await posts.find({ user_id: user.id }).sort({ created_at: -1 }).skip(skip).limit(limit);
-    const total = await posts.count({ user_id: user.id });
+    // const userPosts = await posts.find({ user_id: user.id }).sort({ created_at: -1 }).skip(skip).limit(limit);
+    const postsResult = await pool.query(
+    `SELECT *
+     FROM posts
+     WHERE user_id = $1
+     ORDER BY created_at DESC
+     LIMIT $2 OFFSET $3`,
+    [user.id, limit, skip]
+    );
+
+    const userPosts = postsResult.rows;
+    // const total = await posts.count({ user_id: user.id });
+    const countResult = await pool.query(
+    `SELECT COUNT(*)
+     FROM posts
+     WHERE user_id = $1`,
+    [user.id]
+    );
+
+    const total = parseInt(countResult.rows[0].count);
 
     const userId = req.user ? req.user.id : null;
     const enriched = await Promise.all(userPosts.map(p => enrichPost(p, userId)));
