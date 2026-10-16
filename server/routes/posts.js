@@ -156,44 +156,74 @@ router.post('/', authMiddleware, uploadFields, async (req, res) => {
 });
 
 // Get feed (sorted by most likes)
+// Get feed (sorted by most likes)
 router.get('/feed', optionalAuth, async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
-    const skip = (page - 1) * limit;
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 20;
+    const offset = (page - 1) * limit;
 
-    // const allPosts = await posts.find({}).sort({ like_count: -1, created_at: -1 }).skip(skip).limit(limit);
-    const postsResult = await pool.query(
-    `SELECT *
-     FROM posts
-     ORDER BY like_count DESC, created_at DESC
-     LIMIT $1 OFFSET $2`,
-    [limit, skip]
-    );
+    // Unauthenticated feed results can be served from cache.
+    const cacheKey = `feed:page:${page}:limit:${limit}`;
+    if (!req.user) {
+      const cached = await getCache(cacheKey);
+      if (cached) return res.json(cached);
+    }
 
-    const allPosts = postsResult.rows;
-    // const total = await posts.count({});
-    const countResult = await pool.query(
-    `SELECT COUNT(*) FROM posts`
-    );
+    // Include each post's author in the same database query.
+    const { count: total, rows: allPosts } = await Post.findAndCountAll({
+      include: [{
+        model: User,
+        attributes: ['username', 'display_name', 'avatar_url']
+      }],
+      order: [['like_count', 'DESC'], ['created_at', 'DESC']],
+      offset,
+      limit
+    });
 
-    const total = parseInt(countResult.rows[0].count);
+    // Fetch this user's likes for the whole page in one query.
+    let likedPostIds = new Set();
+    if (req.user && allPosts.length > 0) {
+      const likes = await Like.findAll({
+        attributes: ['post_id'],
+        where: {
+          user_id: req.user.id,
+          post_id: allPosts.map(post => post.id)
+        }
+      });
+      likedPostIds = new Set(likes.map(like => like.post_id));
+    }
 
-    const userId = req.user ? req.user.id : null;
-    const enriched = await Promise.all(allPosts.map(p => enrichPost(p, userId)));
+    const enriched = allPosts.map(post => {
+      const { User: author, ...postData } = post.toJSON();
 
-    res.json({
+      return {
+        ...postData,
+        username: author ? author.username : 'deleted',
+        display_name: author ? author.display_name : 'Deleted User',
+        author_avatar: author ? author.avatar_url : '',
+        liked_by_user: req.user ? likedPostIds.has(post.id) : false
+      };
+    });
+
+    const responseData = {
       posts: enriched,
       page,
       total_pages: Math.ceil(total / limit),
       total
-    });
+    };
+
+    // Cache only unauthenticated results, which don't depend on the viewer.
+    if (!req.user) {
+      await setCache(cacheKey, responseData, TTL.FEED);
+    }
+
+    res.json(responseData);
   } catch (err) {
     console.error('Feed error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
-
 // Get single post
 router.get('/:id', optionalAuth, async (req, res) => {
   try {
