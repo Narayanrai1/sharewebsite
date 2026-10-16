@@ -3,7 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { users, posts, likes, comments } = require('../db');
+// const { users, posts, likes, comments } = require('../db');
 const pool = require('../db-postgres');
 const { authMiddleware, optionalAuth } = require('../middleware/auth');
 

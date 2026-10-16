@@ -1,214 +1,123 @@
-# 📱 NitrklShare
+# NitrklShare
 
-A modern, feature-rich social media platform built with Node.js and vanilla JavaScript. Share posts, connect with users, and build your community with a beautiful Telegram-inspired design.
+A social sharing platform built with Node.js, Express, PostgreSQL, and vanilla JavaScript. Users can publish posts, interact through likes and comments, view profiles, and search posts.
 
-## ✨ Features
+## Features
 
-- **User Authentication** — Secure registration and login with JWT tokens
-- **Create & Share Posts** — Post content with images and descriptions
-- **Like System** — Engage with posts by liking them
-- **Comments** — Add comments to posts for community discussion
-- **User Profiles** — View user profiles with post history and statistics
-- **Search** — Find posts by title, description, or content
-- **Responsive Design** — Beautiful glassmorphism UI with Telegram-inspired aesthetics
-- **Real-time Updates** — Dynamic feed and live post engagement
+- Account registration and login
+- JWT-based authentication
+- Posts with text and media
+- Likes and comments
+- User profiles and post statistics
+- Search by post title, description, or content
+- Responsive web interface
 
-## 🛠️ Tech Stack
+## Technology
 
-- **Frontend**: HTML5, CSS3, Vanilla JavaScript
-- **Backend**: Node.js, Express.js
-- **Database**: NeDB (embedded NoSQL)
-- **Authentication**: JWT (JSON Web Tokens)
-- **Design**: Glassmorphism with CSS Custom Properties
+- **Frontend:** HTML, CSS, vanilla JavaScript
+- **Backend:** Node.js and Express
+- **Database:** PostgreSQL, accessed through Sequelize
+- **Authentication:** JSON Web Tokens
+- **Uploads:** Local media and avatar upload directories
 
-## 📁 Project Structure
+## Project layout
 
-```
+```text
 sharewebsite/
-├── public/                 # Frontend files
-│   ├── index.html         # Landing page
-│   ├── register.html      # Registration page
-│   ├── dashboard.html     # Main feed
-│   ├── profile.html       # User profiles
-│   ├── post.html          # Individual post view
-│   ├── css/
-│   │   └── style.css      # Main stylesheet with design system
-│   └── js/
-│       ├── api.js         # Centralized API client
-│       ├── dashboard.js   # Feed logic
-│       ├── profile.js     # Profile page logic
-│       ├── post.js        # Post page logic
-│       └── auth.js        # Authentication logic
+├── public/                 # Frontend pages, styles, and scripts
 ├── server/
-│   ├── index.js           # Express app entry point
-│   ├── db.js              # Database initialization
+│   ├── index.js            # Express app and server startup
+│   ├── db.js               # PostgreSQL connection and Sequelize models
+│   ├── cache.js            # Cache helpers
+│   ├── redis.js            # Redis connection
 │   ├── middleware/
-│   │   └── auth.js        # JWT authentication middleware
+│   │   └── auth.js         # Authentication middleware
 │   └── routes/
-│       ├── auth.js        # Authentication endpoints
-│       ├── posts.js       # Post CRUD operations
-│       ├── comments.js    # Comment endpoints
-│       └── search.js      # Search functionality
-├── data/                  # NeDB database files (auto-created)
-├── package.json           # Dependencies
-└── README.md             # This file
+│       ├── auth.js         # Registration, login, and profile routes
+│       ├── posts.js        # Posts, likes, and comments
+│       └── search.js       # Post search
+├── uploads/                # Uploaded files; created by the server
+├── package.json
+└── README.md
 ```
 
-## 🚀 Getting Started
+## Run locally
 
-### Prerequisites
+### Requirements
 
-- Node.js (v14 or higher)
-- npm or yarn
+- Node.js and npm
+- A PostgreSQL database
+- Redis if you want to use the cache
 
-### Installation
+### Setup
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/Narayanrai1/sharewebsite.git
-   cd sharewebsite
-   ```
+1. Install the project dependencies:
 
-2. **Install dependencies**
    ```bash
    npm install
    ```
 
-3. **Set up environment variables**
-   
-   Create a `.env` file in the root directory:
-   ```env
-   PORT=3000
-   JWT_SECRET=your_jwt_secret_key_here
-   NODE_ENV=development
-   ```
+2. Configure the server’s environment privately in a local `.env` file. Set the database connection, authentication secret, and any other settings required for your environment. Do not share the file or commit its contents.
 
-4. **Start the server**
+3. Start the server:
+
    ```bash
    npm start
    ```
 
-5. **Open in browser**
-   
-   Navigate to `http://localhost:3000`
+   For development with automatic restarts:
 
-## 📖 API Documentation
+   ```bash
+   npm run dev
+   ```
 
-### Authentication Routes
+4. Open [http://localhost:3000](http://localhost:3000) in your browser, or use the port configured for your environment.
 
-- `POST /api/auth/register` — Create a new account
-- `POST /api/auth/login` — Login with email and password
-- `GET /api/auth/me` — Get current user info
-- `GET /api/auth/user/:username` — Get user profile
-- `PUT /api/auth/profile` — Update profile (requires auth)
+The server connects to PostgreSQL and synchronizes its Sequelize models at startup. Keep database credentials and authentication secrets out of source control and public messages. The `.env` file is excluded by `.gitignore`.
 
-### Posts Routes
+## API routes
 
-- `POST /api/posts` — Create a new post (requires auth)
-- `GET /api/posts/feed` — Get paginated feed
-- `GET /api/posts/:id` — Get specific post
-- `GET /api/posts/user/:username` — Get user's posts
-- `DELETE /api/posts/:id` — Delete post (requires auth)
-- `POST /api/posts/:id/like` — Toggle like (requires auth)
+### Authentication and profiles
 
-### Comments Routes
+- `POST /api/auth/register` — Create an account
+- `POST /api/auth/login` — Log in
+- `GET /api/auth/me` — Get the authenticated user
+- `GET /api/auth/user/:username` — Get a user profile
+- `PUT /api/auth/profile` — Update the authenticated user’s profile
 
-- `GET /api/posts/:postId/comments` — Get post comments
-- `POST /api/posts/:postId/comments` — Add comment (requires auth)
+### Posts, likes, and comments
 
-### Search Routes
+- `POST /api/posts` — Create a post (authentication required)
+- `GET /api/posts/feed` — Get the paginated feed
+- `GET /api/posts/:id` — Get a post
+- `GET /api/posts/user/:username` — Get a user’s posts
+- `DELETE /api/posts/:id` — Delete the authenticated user’s post
+- `POST /api/posts/:id/like` — Toggle a like (authentication required)
+- `GET /api/posts/:id/comments` — Get a post’s comments
+- `POST /api/posts/:id/comments` — Add a comment (authentication required)
 
-- `GET /api/search?q=keyword&page=1` — Search posts
+### Search
 
-## 🎨 Design System
+- `GET /api/search?q=keyword&page=1` — Search posts by title, description, or content
 
-The application uses a premium design system with:
+## Database
 
-- **Color Palette**: Telegram-inspired blues (#2AABEE), emerald accents (#34D399), and dark backgrounds
-- **Typography**: Inter and Outfit font families
-- **Effects**: Glassmorphism, gradient overlays, and smooth animations
-- **Responsive Grid**: Optimized for desktop, tablet, and mobile
+The server defines Sequelize models for these PostgreSQL tables:
 
-## 🔐 Security Features
+- **users** — Account details, password hash, profile information, and creation time
+- **posts** — Author, content, media links, engagement counts, and creation time
+- **likes** — User-to-post likes
+- **comments** — Post comments and author references
 
-- **JWT Authentication** — Secure token-based authentication
-- **Password Hashing** — Passwords are securely hashed before storage
-- **Unique Constraints** — Email and username uniqueness enforced at database level
-- **Authorization Checks** — Protected routes verify user identity
+The search route also uses Sequelize models, so search queries run against PostgreSQL.
 
-## 📊 Database Schema
+## Uploaded files
 
-### Users Collection
-```javascript
-{
-  id,
-  username (unique),
-  email (unique),
-  password_hash,
-  display_name,
-  bio,
-  avatar_url,
-  post_count,
-  total_likes,
-  created_at
-}
-```
+The server creates upload directories for media and avatars when it starts. These uploaded files are runtime data; arrange persistent storage separately when deploying to an environment where the application filesystem is temporary.
 
-### Posts Collection
-```javascript
-{
-  id,
-  user_id,
-  title,
-  description,
-  content_text,
-  image_url,
-  like_count,
-  comment_count,
-  created_at
-}
-```
+## Security
 
-### Comments Collection
-```javascript
-{
-  id,
-  post_id,
-  user_id,
-  text,
-  created_at
-}
-```
-
-### Likes Collection
-```javascript
-{
-  id,
-  user_id,
-  post_id,
-  created_at
-}
-```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 📝 License
-
-This project is open source and available under the MIT License.
-
-## 👤 Author
-
-**Narayan Rai**
-- GitHub: [@Narayanrai1](https://github.com/Narayanrai1)
-
-## 🙏 Acknowledgments
-
-- Inspired by modern social media platforms like Telegram
-- Built with clean, maintainable code principles
-- Designed with user experience in mind
-
----
-
-**Happy Sharing!** 🎉
+- Passwords are hashed before storage.
+- Protected routes require a valid authentication token.
+- Database credentials and authentication secrets should remain private and must not be committed.
+- Uploaded files and local environment configuration are excluded from Git.
