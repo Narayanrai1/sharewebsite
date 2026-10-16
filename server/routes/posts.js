@@ -272,7 +272,15 @@ router.get('/user/:username', optionalAuth, async (req, res) => {
 // Delete post
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
-    const post = await posts.findOne({ id: req.params.id });
+    // const post = await posts.findOne({ id: req.params.id });
+    const postResult = await pool.query(
+      `SELECT *
+      FROM posts
+      WHERE id = $1`,
+      [req.params.id]
+    );
+
+    const post = postResult.rows[0];
     if (!post) return res.status(404).json({ error: 'Post not found' });
     if (post.user_id !== req.user.id) return res.status(403).json({ error: 'Not authorized' });
 
@@ -286,10 +294,14 @@ router.delete('/:id', authMiddleware, async (req, res) => {
       if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath);
     }
 
-    await comments.remove({ post_id: req.params.id }, { multi: true });
-    await likes.remove({ post_id: req.params.id }, { multi: true });
-    await posts.remove({ id: req.params.id });
-
+    // await comments.remove({ post_id: req.params.id }, { multi: true });
+    // await likes.remove({ post_id: req.params.id }, { multi: true });
+    // await posts.remove({ id: req.params.id });
+    await pool.query(
+    `DELETE FROM posts
+     WHERE id = $1`,
+    [req.params.id]
+    );
     res.json({ message: 'Post deleted' });
   } catch (err) {
     console.error('Delete post error:', err);
