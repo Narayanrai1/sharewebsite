@@ -162,8 +162,22 @@ router.get('/feed', optionalAuth, async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    const allPosts = await posts.find({}).sort({ like_count: -1, created_at: -1 }).skip(skip).limit(limit);
-    const total = await posts.count({});
+    // const allPosts = await posts.find({}).sort({ like_count: -1, created_at: -1 }).skip(skip).limit(limit);
+    const postsResult = await pool.query(
+    `SELECT *
+     FROM posts
+     ORDER BY like_count DESC, created_at DESC
+     LIMIT $1 OFFSET $2`,
+    [limit, skip]
+    );
+
+    const allPosts = postsResult.rows;
+    // const total = await posts.count({});
+    const countResult = await pool.query(
+    `SELECT COUNT(*) FROM posts`
+    );
+
+    const total = parseInt(countResult.rows[0].count);
 
     const userId = req.user ? req.user.id : null;
     const enriched = await Promise.all(allPosts.map(p => enrichPost(p, userId)));
