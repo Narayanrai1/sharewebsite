@@ -310,6 +310,143 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 });
 
 // Toggle like
+router.post('/:id/like', authMiddleware, async (req, res) => {
+    try {
+        // 1. Check whether the post exists
+        const postResult = await pool.query(
+            `SELECT *
+             FROM posts
+             WHERE id = $1`,
+            [req.params.id]
+        );
+
+        const post = postResult.rows[0];
+
+        if (!post) {
+            return res.status(404).json({ error: 'Post not found' });
+        }
+
+        // 2. Check whether this user already liked the post
+        const likeResult = await pool.query(
+            `SELECT id
+             FROM likes
+             WHERE user_id = $1 AND post_id = $2`,
+            [req.user.id, req.params.id]
+        );
+
+        const existingLike = likeResult.rows[0];
+
+        // 3. Unlike
+        if (existingLike) {
+            await pool.query(
+                `DELETE FROM likes
+                 WHERE id = $1`,
+                [existingLike.id]
+            );
+
+            await pool.query(
+                `UPDATE posts
+                 SET like_count = GREATEST(0, COALESCE(like_count, 0) - 1)
+                 WHERE id = $1`,
+                [req.params.id]
+            );
+
+            const updatedResult = await pool.query(
+                `SELECT like_count
+                 FROM posts
+                 WHERE id = $1`,
+                [req.params.id]
+            );
+
+            const updated = updatedResult.rows[0];
+
+            return res.json({
+                liked: false,
+                like_count: updated.like_count
+            });
+        }
+
+        // 4. Like
+        await pool.query(
+            `INSERT INTO likes
+             (id, user_id, post_id, created_at)
+             VALUES ($1, $2, $3, $4)`,
+            [
+                uuidv4(),
+                req.user.id,
+                req.params.id,
+                new Date()
+            ]
+        );
+
+        await pool.query(
+            `UPDATE posts
+             SET like_count = COALESCE(like_count, 0) + 1
+             WHERE id = $1`,
+            [req.params.id]
+        );
+
+        const updatedResult = await pool.query(
+            `SELECT like_count
+             FROM posts
+             WHERE id = $1`,
+            [req.params.id]
+        );
+
+        const updated = updatedResult.rows[0];
+
+        res.json({
+            liked: true,
+            like_count: updated.like_count
+        });
+
+    } catch (err) {
+        console.error('Like error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+// Get comments for a post
+router.get('/:id/comments', async (req, res) => {
+    try {
+        const commentsResult = await pool.query(
+            `SELECT *
+             FROM comments
+             WHERE post_id = $1
+             ORDER BY created_at ASC`,
+            [req.params.id]
+        );
+
+        const postComments = commentsResult.rows;
+
+        const enriched = await Promise.all(
+            postComments.map(async (c) => {
+                const authorResult = await pool.query(
+                    `SELECT username, display_name, avatar_url
+                     FROM users
+                     WHERE id = $1`,
+                    [c.user_id]
+                );
+
+                const author = authorResult.rows[0];
+
+                return {
+                    ...c,
+                    username: author ? author.username : 'deleted',
+                    display_name: author ? author.display_name : 'Deleted User',
+                    author_avatar: author ? author.avatar_url : ''
+                };
+            })
+        );
+
+        res.json(enriched);
+
+    } catch (err) {
+        console.error('Get comments error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Add comment
 router.post('/:id/comments', authMiddleware, async (req, res) => {
     try {
         const { text } = req.body;
@@ -320,7 +457,7 @@ router.post('/:id/comments', authMiddleware, async (req, res) => {
             });
         }
 
-        // 1. Check whether the post exists
+        // Check that the post exists
         const postResult = await pool.query(
             `SELECT id
              FROM posts
@@ -336,8 +473,9 @@ router.post('/:id/comments', authMiddleware, async (req, res) => {
             });
         }
 
-        // 2. Create the comment
+        // Create comment
         const id = uuidv4();
+        const createdAt = new Date();
 
         await pool.query(
             `INSERT INTO comments
@@ -348,11 +486,11 @@ router.post('/:id/comments', authMiddleware, async (req, res) => {
                 req.user.id,
                 req.params.id,
                 text.trim(),
-                new Date()
+                createdAt
             ]
         );
 
-        // 3. Increase the comment count on the post
+        // Increase comment count
         await pool.query(
             `UPDATE posts
              SET comment_count = COALESCE(comment_count, 0) + 1
@@ -360,7 +498,7 @@ router.post('/:id/comments', authMiddleware, async (req, res) => {
             [req.params.id]
         );
 
-        // 4. Get the author's information
+        // Get author
         const authorResult = await pool.query(
             `SELECT username, display_name, avatar_url
              FROM users
@@ -370,76 +508,21 @@ router.post('/:id/comments', authMiddleware, async (req, res) => {
 
         const author = authorResult.rows[0];
 
-        // 5. Return the newly created comment
         res.status(201).json({
             id,
             user_id: req.user.id,
             post_id: req.params.id,
             text: text.trim(),
-            created_at: new Date(),
+            created_at: createdAt,
             username: author ? author.username : 'deleted',
             display_name: author ? author.display_name : 'Deleted User',
             author_avatar: author ? author.avatar_url : ''
         });
 
     } catch (err) {
-        console.error('Create comment error:', err);
-        res.status(500).json({
-            error: 'Server error'
-        });
+        console.error('Add comment error:', err);
+        res.status(500).json({ error: 'Server error' });
     }
-});
-// Get comments for a post
-router.get('/:id/comments', async (req, res) => {
-  try {
-    const postComments = await comments.find({ post_id: req.params.id }).sort({ created_at: 1 });
-    const enriched = await Promise.all(postComments.map(async (c) => {
-      const author = await users.findOne({ id: c.user_id });
-      return {
-        ...c,
-        username: author ? author.username : 'deleted',
-        display_name: author ? author.display_name : 'Deleted User',
-        author_avatar: author ? author.avatar_url : ''
-      };
-    }));
-    res.json(enriched);
-  } catch (err) {
-    console.error('Get comments error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Add comment
-router.post('/:id/comments', authMiddleware, async (req, res) => {
-  try {
-    const { text } = req.body;
-    if (!text || !text.trim()) return res.status(400).json({ error: 'Comment text is required' });
-
-    const post = await posts.findOne({ id: req.params.id });
-    if (!post) return res.status(404).json({ error: 'Post not found' });
-
-    const id = uuidv4();
-    const newComment = await comments.insert({
-      id,
-      user_id: req.user.id,
-      post_id: req.params.id,
-      text: text.trim(),
-      created_at: new Date().toISOString()
-    });
-
-    await posts.update({ id: req.params.id }, { $set: { comment_count: (post.comment_count || 0) + 1 } });
-
-    const author = await users.findOne({ id: req.user.id });
-    res.status(201).json({
-      ...newComment,
-      username: author.username,
-      display_name: author.display_name,
-      author_avatar: author.avatar_url
-    });
-  } catch (err) {
-    console.error('Add comment error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
 });
 
 module.exports = router;
