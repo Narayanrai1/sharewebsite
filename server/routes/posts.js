@@ -311,29 +311,100 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
 // Toggle like
 router.post('/:id/like', authMiddleware, async (req, res) => {
-  try {
-    const post = await posts.findOne({ id: req.params.id });
-    if (!post) return res.status(404).json({ error: 'Post not found' });
+    try {
+        // 1. Check whether the post exists
+        const postResult = await pool.query(
+            `SELECT *
+             FROM posts
+             WHERE id = $1`,
+            [req.params.id]
+        );
 
-    const existingLike = await likes.findOne({ user_id: req.user.id, post_id: req.params.id });
+        const post = postResult.rows[0];
 
-    if (existingLike) {
-      await likes.remove({ _id: existingLike._id });
-      await posts.update({ id: req.params.id }, { $set: { like_count: Math.max(0, (post.like_count || 0) - 1) } });
-      const updated = await posts.findOne({ id: req.params.id });
-      res.json({ liked: false, like_count: updated.like_count });
-    } else {
-      await likes.insert({ id: uuidv4(), user_id: req.user.id, post_id: req.params.id, created_at: new Date().toISOString() });
-      await posts.update({ id: req.params.id }, { $set: { like_count: (post.like_count || 0) + 1 } });
-      const updated = await posts.findOne({ id: req.params.id });
-      res.json({ liked: true, like_count: updated.like_count });
+        if (!post) {
+            return res.status(404).json({ error: 'Post not found' });
+        }
+
+        // 2. Check whether this user already liked the post
+        const likeResult = await pool.query(
+            `SELECT id
+             FROM likes
+             WHERE user_id = $1 AND post_id = $2`,
+            [req.user.id, req.params.id]
+        );
+
+        const existingLike = likeResult.rows[0];
+
+        // 3. Unlike
+        if (existingLike) {
+            await pool.query(
+                `DELETE FROM likes
+                 WHERE id = $1`,
+                [existingLike.id]
+            );
+
+            await pool.query(
+                `UPDATE posts
+                 SET like_count = GREATEST(0, COALESCE(like_count, 0) - 1)
+                 WHERE id = $1`,
+                [req.params.id]
+            );
+
+            const updatedResult = await pool.query(
+                `SELECT like_count
+                 FROM posts
+                 WHERE id = $1`,
+                [req.params.id]
+            );
+
+            const updated = updatedResult.rows[0];
+
+            return res.json({
+                liked: false,
+                like_count: updated.like_count
+            });
+        }
+
+        // 4. Like
+        await pool.query(
+            `INSERT INTO likes
+             (id, user_id, post_id, created_at)
+             VALUES ($1, $2, $3, $4)`,
+            [
+                uuidv4(),
+                req.user.id,
+                req.params.id,
+                new Date()
+            ]
+        );
+
+        await pool.query(
+            `UPDATE posts
+             SET like_count = COALESCE(like_count, 0) + 1
+             WHERE id = $1`,
+            [req.params.id]
+        );
+
+        const updatedResult = await pool.query(
+            `SELECT like_count
+             FROM posts
+             WHERE id = $1`,
+            [req.params.id]
+        );
+
+        const updated = updatedResult.rows[0];
+
+        res.json({
+            liked: true,
+            like_count: updated.like_count
+        });
+
+    } catch (err) {
+        console.error('Like error:', err);
+        res.status(500).json({ error: 'Server error' });
     }
-  } catch (err) {
-    console.error('Like error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
 });
-
 // Get comments for a post
 router.get('/:id/comments', async (req, res) => {
   try {
