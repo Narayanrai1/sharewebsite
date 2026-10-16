@@ -310,11 +310,19 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 });
 
 // Toggle like
-router.post('/:id/like', authMiddleware, async (req, res) => {
+router.post('/:id/comments', authMiddleware, async (req, res) => {
     try {
+        const { text } = req.body;
+
+        if (!text || !text.trim()) {
+            return res.status(400).json({
+                error: 'Comment text is required'
+            });
+        }
+
         // 1. Check whether the post exists
         const postResult = await pool.query(
-            `SELECT *
+            `SELECT id
              FROM posts
              WHERE id = $1`,
             [req.params.id]
@@ -323,86 +331,62 @@ router.post('/:id/like', authMiddleware, async (req, res) => {
         const post = postResult.rows[0];
 
         if (!post) {
-            return res.status(404).json({ error: 'Post not found' });
-        }
-
-        // 2. Check whether this user already liked the post
-        const likeResult = await pool.query(
-            `SELECT id
-             FROM likes
-             WHERE user_id = $1 AND post_id = $2`,
-            [req.user.id, req.params.id]
-        );
-
-        const existingLike = likeResult.rows[0];
-
-        // 3. Unlike
-        if (existingLike) {
-            await pool.query(
-                `DELETE FROM likes
-                 WHERE id = $1`,
-                [existingLike.id]
-            );
-
-            await pool.query(
-                `UPDATE posts
-                 SET like_count = GREATEST(0, COALESCE(like_count, 0) - 1)
-                 WHERE id = $1`,
-                [req.params.id]
-            );
-
-            const updatedResult = await pool.query(
-                `SELECT like_count
-                 FROM posts
-                 WHERE id = $1`,
-                [req.params.id]
-            );
-
-            const updated = updatedResult.rows[0];
-
-            return res.json({
-                liked: false,
-                like_count: updated.like_count
+            return res.status(404).json({
+                error: 'Post not found'
             });
         }
 
-        // 4. Like
+        // 2. Create the comment
+        const id = uuidv4();
+
         await pool.query(
-            `INSERT INTO likes
-             (id, user_id, post_id, created_at)
-             VALUES ($1, $2, $3, $4)`,
+            `INSERT INTO comments
+             (id, user_id, post_id, text, created_at)
+             VALUES ($1, $2, $3, $4, $5)`,
             [
-                uuidv4(),
+                id,
                 req.user.id,
                 req.params.id,
+                text.trim(),
                 new Date()
             ]
         );
 
+        // 3. Increase the comment count on the post
         await pool.query(
             `UPDATE posts
-             SET like_count = COALESCE(like_count, 0) + 1
+             SET comment_count = COALESCE(comment_count, 0) + 1
              WHERE id = $1`,
             [req.params.id]
         );
 
-        const updatedResult = await pool.query(
-            `SELECT like_count
-             FROM posts
+        // 4. Get the author's information
+        const authorResult = await pool.query(
+            `SELECT username, display_name, avatar_url
+             FROM users
              WHERE id = $1`,
-            [req.params.id]
+            [req.user.id]
         );
 
-        const updated = updatedResult.rows[0];
+        const author = authorResult.rows[0];
 
-        res.json({
-            liked: true,
-            like_count: updated.like_count
+        // 5. Return the newly created comment
+        res.status(201).json({
+            id,
+            user_id: req.user.id,
+            post_id: req.params.id,
+            text: text.trim(),
+            created_at: new Date(),
+            username: author ? author.username : 'deleted',
+            display_name: author ? author.display_name : 'Deleted User',
+            author_avatar: author ? author.avatar_url : ''
         });
 
     } catch (err) {
-        console.error('Like error:', err);
-        res.status(500).json({ error: 'Server error' });
+        console.error('Create comment error:', err);
+        res.status(500).json({
+            error: 'Server error'
+        });
     }
 });
 // Get comments for a post
