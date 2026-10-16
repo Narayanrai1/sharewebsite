@@ -3,7 +3,8 @@ const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { users, posts, likes, comments } = require('../db');
+// const { users, posts, likes, comments } = require('../db');
+const pool = require('../db-postgres');
 const { authMiddleware, optionalAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -50,21 +51,36 @@ const uploadFields = upload.fields([
 
 // Helper to enrich post with author info
 async function enrichPost(post, userId) {
-  const author = await users.findOne({ id: post.user_id });
-  let liked_by_user = false;
-  if (userId) {
-    const like = await likes.findOne({ user_id: userId, post_id: post.id });
-    liked_by_user = !!like;
-  }
-  return {
-    ...post,
-    username: author ? author.username : 'deleted',
-    display_name: author ? author.display_name : 'Deleted User',
-    author_avatar: author ? author.avatar_url : '',
-    liked_by_user
-  };
-}
+    const authorResult = await pool.query(
+        `SELECT username, display_name, avatar_url
+         FROM users
+         WHERE id = $1`,
+        [post.user_id]
+    );
 
+    const author = authorResult.rows[0];
+
+    let liked_by_user = false;
+
+    if (userId) {
+        const likeResult = await pool.query(
+            `SELECT 1
+             FROM likes
+             WHERE user_id = $1 AND post_id = $2`,
+            [userId, post.id]
+        );
+
+        liked_by_user = likeResult.rows.length > 0;
+    }
+
+    return {
+        ...post,
+        username: author ? author.username : 'deleted',
+        display_name: author ? author.display_name : 'Deleted User',
+        author_avatar: author ? author.avatar_url : '',
+        liked_by_user
+    };
+}
 // Create post
 router.post('/', authMiddleware, uploadFields, async (req, res) => {
   try {
@@ -106,20 +122,31 @@ router.post('/', authMiddleware, uploadFields, async (req, res) => {
       thumbnail_url = `/uploads/media/${thumbnailFile.filename}`;
     }
 
-    const newPost = await posts.insert({
+    await pool.query(
+    `INSERT INTO posts
+    (id, user_id, title, description, content_type, content_text,
+      media_url, thumbnail_url, like_count, comment_count, created_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    [
       id,
-      user_id: req.user.id,
+      req.user.id,
       title,
-      description: description || '',
+      description || '',
       content_type,
-      content_text: content_text || '',
+      content_text || '',
       media_url,
       thumbnail_url,
-      like_count: 0,
-      comment_count: 0,
-      created_at: new Date().toISOString()
-    });
+      0,
+      0,
+      new Date()
+    ]
+    );
+    const postResult = await pool.query(
+    `SELECT * FROM posts WHERE id = $1`,
+    [id]
+    );
 
+    const newPost = postResult.rows[0];
     const enriched = await enrichPost(newPost, req.user.id);
     res.status(201).json(enriched);
   } catch (err) {
