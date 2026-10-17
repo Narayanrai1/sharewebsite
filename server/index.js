@@ -10,8 +10,9 @@ const postRoutes = require('./routes/posts');
 const searchRoutes = require('./routes/search');
 
 const errorHandler = require('./middleware/errorHandler');
-//database
+const redisClient = require('./redis');
 const postgres = require('./db-postgres');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -29,40 +30,51 @@ app.use(express.urlencoded({ extended: true }));
 
 // Static files
 app.use(express.static(path.join(__dirname, '..', 'public')));
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+app.use('/uploads', express.static(uploadsDir));
 
-// API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/posts', postRoutes);
-app.use('/api/search', searchRoutes);
+async function startServer() {
+  // Connect before creating the Redis-backed rate limiters.
+  await redisClient.connect();
 
-// SPA fallback
-app.get('*', (req, res) => {
+  const { apiLimiter, authLimiter } = require('./middleware/rateLimiters');
+
+  // API routes
+  app.use('/api', apiLimiter);
+  app.use('/api/auth', authLimiter, authRoutes);
+  app.use('/api/posts', postRoutes);
+  app.use('/api/search', searchRoutes);
+
+  // SPA fallback
+  app.get('*', (req, res) => {
     if (req.path.startsWith('/api/')) {
-        return res.status(404).json({
-            error: 'API route not found'
-        });
+      return res.status(404).json({
+        error: 'API route not found'
+      });
     }
 
     const htmlPages = ['register', 'dashboard', 'profile'];
     const pageName = req.path.replace('/', '').replace('.html', '');
 
     if (htmlPages.includes(pageName)) {
-        return res.sendFile(
-            path.join(__dirname, '..', 'public', `${pageName}.html`)
-        );
+      return res.sendFile(
+        path.join(__dirname, '..', 'public', `${pageName}.html`)
+      );
     }
 
     res.sendFile(
-        path.join(__dirname, '..', 'public', 'index.html')
+      path.join(__dirname, '..', 'public', 'index.html')
     );
-});
+  });
 
-// Error handler MUST be last
-app.use(errorHandler);
+  // Error handler must be registered last.
+  app.use(errorHandler);
 
-app.listen(PORT, () => {
-    console.log(
-        `\n🚀 NitrklShare server running at http://localhost:${PORT}\n`
-    );
+  app.listen(PORT, () => {
+    console.log(`\n🚀 NitrklShare server running at http://localhost:${PORT}\n`);
+  });
+}
+
+startServer().catch((err) => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });

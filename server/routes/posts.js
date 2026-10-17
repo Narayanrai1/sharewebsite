@@ -159,66 +159,44 @@ router.post('/', authMiddleware, uploadFields, async (req, res) => {
 // Get feed (sorted by most likes)
 router.get('/feed', optionalAuth, async (req, res) => {
   try {
-    const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 20;
+    const requestedPage = parseInt(req.query.page, 10) || 1;
+    const requestedLimit = parseInt(req.query.limit, 10) || 20;
+
+    const page = Math.max(requestedPage, 1);
+    const limit = Math.min(Math.max(requestedLimit, 1), 50);
     const offset = (page - 1) * limit;
+    const userId = req.user ? req.user.id : null;
 
-    // Unauthenticated feed results can be served from cache.
-    const cacheKey = `feed:page:${page}:limit:${limit}`;
-    if (!req.user) {
-      const cached = await getCache(cacheKey);
-      if (cached) return res.json(cached);
-    }
+    const countResult = await pool.query(
+      `SELECT COUNT(*) AS total
+       FROM posts`
+    );
 
-    // Include each post's author in the same database query.
-    const { count: total, rows: allPosts } = await Post.findAndCountAll({
-      include: [{
-        model: User,
-        attributes: ['username', 'display_name', 'avatar_url']
-      }],
-      order: [['like_count', 'DESC'], ['created_at', 'DESC']],
-      offset,
-      limit
-    });
+    const postsResult = await pool.query(
+      `SELECT
+         p.*,
+         u.username,
+         u.display_name,
+         u.avatar_url AS author_avatar,
+         (l.id IS NOT NULL) AS liked_by_user
+       FROM posts p
+       LEFT JOIN users u ON u.id = p.user_id
+       LEFT JOIN likes l
+         ON l.post_id = p.id
+        AND l.user_id = $3
+       ORDER BY p.like_count DESC, p.created_at DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset, userId]
+    );
 
-    // Fetch this user's likes for the whole page in one query.
-    let likedPostIds = new Set();
-    if (req.user && allPosts.length > 0) {
-      const likes = await Like.findAll({
-        attributes: ['post_id'],
-        where: {
-          user_id: req.user.id,
-          post_id: allPosts.map(post => post.id)
-        }
-      });
-      likedPostIds = new Set(likes.map(like => like.post_id));
-    }
+    const total = Number(countResult.rows[0].total);
 
-    const enriched = allPosts.map(post => {
-      const { User: author, ...postData } = post.toJSON();
-
-      return {
-        ...postData,
-        username: author ? author.username : 'deleted',
-        display_name: author ? author.display_name : 'Deleted User',
-        author_avatar: author ? author.avatar_url : '',
-        liked_by_user: req.user ? likedPostIds.has(post.id) : false
-      };
-    });
-
-    const responseData = {
-      posts: enriched,
+    res.json({
+      posts: postsResult.rows,
       page,
       total_pages: Math.ceil(total / limit),
       total
-    };
-
-    // Cache only unauthenticated results, which don't depend on the viewer.
-    if (!req.user) {
-      await setCache(cacheKey, responseData, TTL.FEED);
-    }
-
-    res.json(responseData);
+    });
   } catch (err) {
     console.error('Feed error:', err);
     res.status(500).json({ error: 'Server error' });
