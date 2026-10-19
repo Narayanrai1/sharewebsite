@@ -335,99 +335,93 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
 // Toggle like
 router.post('/:id/like', authMiddleware, async (req, res) => {
-    try {
-        // 1. Check whether the post exists
-        const postResult = await pool.query(
-            `SELECT *
-             FROM posts
-             WHERE id = $1`,
-            [req.params.id]
-        );
+  try {
+    const postResult = await pool.query(
+      `SELECT *
+       FROM posts
+       WHERE id = $1`,
+      [req.params.id]
+    );
 
-        const post = postResult.rows[0];
+    const post = postResult.rows[0];
 
-        if (!post) {
-            return res.status(404).json({ error: 'Post not found' });
-        }
-
-        // 2. Check whether this user already liked the post
-        const likeResult = await pool.query(
-            `SELECT id
-             FROM likes
-             WHERE user_id = $1 AND post_id = $2`,
-            [req.user.id, req.params.id]
-        );
-
-        const existingLike = likeResult.rows[0];
-
-        // 3. Unlike
-        if (existingLike) {
-            await pool.query(
-                `DELETE FROM likes
-                 WHERE id = $1`,
-                [existingLike.id]
-            );
-
-            await pool.query(
-                `UPDATE posts
-                 SET like_count = GREATEST(0, COALESCE(like_count, 0) - 1)
-                 WHERE id = $1`,
-                [req.params.id]
-            );
-
-            const updatedResult = await pool.query(
-                `SELECT like_count
-                 FROM posts
-                 WHERE id = $1`,
-                [req.params.id]
-            );
-
-            const updated = updatedResult.rows[0];
-
-            return res.json({
-                liked: false,
-                like_count: updated.like_count
-            });
-        }
-
-        // 4. Like
-        await pool.query(
-            `INSERT INTO likes
-             (id, user_id, post_id, created_at)
-             VALUES ($1, $2, $3, $4)`,
-            [
-                uuidv4(),
-                req.user.id,
-                req.params.id,
-                new Date()
-            ]
-        );
-
-        await pool.query(
-            `UPDATE posts
-             SET like_count = COALESCE(like_count, 0) + 1
-             WHERE id = $1`,
-            [req.params.id]
-        );
-
-        const updatedResult = await pool.query(
-            `SELECT like_count
-             FROM posts
-             WHERE id = $1`,
-            [req.params.id]
-        );
-
-        const updated = updatedResult.rows[0];
-
-        res.json({
-            liked: true,
-            like_count: updated.like_count
-        });
-
-    } catch (err) {
-        console.error('Like error:', err);
-        res.status(500).json({ error: 'Server error' });
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
     }
+
+    const likeResult = await pool.query(
+      `SELECT id
+       FROM likes
+       WHERE user_id = $1 AND post_id = $2`,
+      [req.user.id, req.params.id]
+    );
+
+    const existingLike = likeResult.rows[0];
+
+    if (existingLike) {
+      await pool.query(
+        `DELETE FROM likes WHERE id = $1`,
+        [existingLike.id]
+      );
+
+      const updatedResult = await pool.query(
+        `UPDATE posts
+         SET like_count = GREATEST(0, COALESCE(like_count, 0) - 1)
+         WHERE id = $1
+         RETURNING like_count`,
+        [req.params.id]
+      );
+
+      const likeCount = Number(updatedResult.rows[0].like_count);
+      const io = req.app.get('io');
+
+      if (io) {
+        io.to(`post:${req.params.id}`).emit('post:like-count', {
+          postId: req.params.id,
+          likeCount
+        });
+      }
+
+      return res.json({ liked: false, like_count: likeCount });
+    }
+
+    await pool.query(
+      `INSERT INTO likes (id, user_id, post_id, created_at)
+       VALUES ($1, $2, $3, $4)`,
+      [uuidv4(), req.user.id, req.params.id, new Date()]
+    );
+
+    const updatedResult = await pool.query(
+      `UPDATE posts
+       SET like_count = COALESCE(like_count, 0) + 1
+       WHERE id = $1
+       RETURNING like_count`,
+      [req.params.id]
+    );
+
+    const likeCount = Number(updatedResult.rows[0].like_count);
+    const io = req.app.get('io');
+
+    if (io) {
+      io.to(`post:${req.params.id}`).emit('post:like-count', {
+        postId: req.params.id,
+        likeCount
+      });
+
+      if (post.user_id !== req.user.id) {
+        io.to(`user:${post.user_id}`).emit('notification:new', {
+          type: 'like',
+          postId: req.params.id,
+          message: `@${req.user.username} liked your post`
+        });
+      }
+    }
+
+    res.json({ liked: true, like_count: likeCount });
+  } catch (err) {
+    console.error('Like error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 // Get comments for a post
 router.get('/:id/comments', async (req, res) => {
@@ -471,82 +465,90 @@ router.get('/:id/comments', async (req, res) => {
 });
 
 // Add comment
+// Add comment
 router.post('/:id/comments', authMiddleware, async (req, res) => {
-    try {
-        const { text } = req.body;
+  try {
+    const { text } = req.body;
 
-        if (!text || !text.trim()) {
-            return res.status(400).json({
-                error: 'Comment text is required'
-            });
-        }
-
-        // Check that the post exists
-        const postResult = await pool.query(
-            `SELECT id
-             FROM posts
-             WHERE id = $1`,
-            [req.params.id]
-        );
-
-        const post = postResult.rows[0];
-
-        if (!post) {
-            return res.status(404).json({
-                error: 'Post not found'
-            });
-        }
-
-        // Create comment
-        const id = uuidv4();
-        const createdAt = new Date();
-
-        await pool.query(
-            `INSERT INTO comments
-             (id, user_id, post_id, text, created_at)
-             VALUES ($1, $2, $3, $4, $5)`,
-            [
-                id,
-                req.user.id,
-                req.params.id,
-                text.trim(),
-                createdAt
-            ]
-        );
-
-        // Increase comment count
-        await pool.query(
-            `UPDATE posts
-             SET comment_count = COALESCE(comment_count, 0) + 1
-             WHERE id = $1`,
-            [req.params.id]
-        );
-
-        // Get author
-        const authorResult = await pool.query(
-            `SELECT username, display_name, avatar_url
-             FROM users
-             WHERE id = $1`,
-            [req.user.id]
-        );
-
-        const author = authorResult.rows[0];
-
-        res.status(201).json({
-            id,
-            user_id: req.user.id,
-            post_id: req.params.id,
-            text: text.trim(),
-            created_at: createdAt,
-            username: author ? author.username : 'deleted',
-            display_name: author ? author.display_name : 'Deleted User',
-            author_avatar: author ? author.avatar_url : ''
-        });
-
-    } catch (err) {
-        console.error('Add comment error:', err);
-        res.status(500).json({ error: 'Server error' });
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: 'Comment text is required' });
     }
-});
 
+    const postResult = await pool.query(
+      `SELECT id, user_id
+       FROM posts
+       WHERE id = $1`,
+      [req.params.id]
+    );
+
+    const post = postResult.rows[0];
+
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const id = uuidv4();
+    const createdAt = new Date();
+    const commentText = text.trim();
+
+    await pool.query(
+      `INSERT INTO comments (id, user_id, post_id, text, created_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [id, req.user.id, req.params.id, commentText, createdAt]
+    );
+
+    const countResult = await pool.query(
+      `UPDATE posts
+       SET comment_count = COALESCE(comment_count, 0) + 1
+       WHERE id = $1
+       RETURNING comment_count`,
+      [req.params.id]
+    );
+
+    const commentCount = Number(countResult.rows[0].comment_count);
+
+    const authorResult = await pool.query(
+      `SELECT username, display_name, avatar_url
+       FROM users
+       WHERE id = $1`,
+      [req.user.id]
+    );
+
+    const author = authorResult.rows[0];
+
+    const comment = {
+      id,
+      user_id: req.user.id,
+      post_id: req.params.id,
+      text: commentText,
+      created_at: createdAt,
+      username: author ? author.username : 'deleted',
+      display_name: author ? author.display_name : 'Deleted User',
+      author_avatar: author ? author.avatar_url : ''
+    };
+
+    const io = req.app.get('io');
+
+    if (io) {
+      io.to(`post:${req.params.id}`).emit('post:comment:new', {
+        postId: req.params.id,
+        comment,
+        commentCount
+      });
+
+      if (post.user_id !== req.user.id) {
+        io.to(`user:${post.user_id}`).emit('notification:new', {
+          type: 'comment',
+          postId: req.params.id,
+          message: `@${req.user.username} commented on your post`
+        });
+      }
+    }
+
+    res.status(201).json(comment);
+  } catch (err) {
+    console.error('Add comment error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 module.exports = router;

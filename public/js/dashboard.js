@@ -11,6 +11,7 @@
   }
 
   const currentUser = API.getUser();
+  const socket = API.connectSocket();
   let currentPage = 1;
   let isSearchMode = false;
   let searchQuery = '';
@@ -19,6 +20,40 @@
   let pdfFirstPageBlob = null;
   let currentContentType = 'text';
   let currentDetailPostId = null;
+
+  socket.on('connect', () => {
+    if (currentDetailPostId) socket.emit('post:join', currentDetailPostId);
+  });
+  socket.on('post:comment:new', (event) => {
+    document.querySelectorAll('.post-card').forEach((card) => {
+      if (card.dataset.postId === event.postId) {
+        const count = card.querySelector('.comment-count');
+        if (count && event.commentCount !== undefined) count.textContent = event.commentCount;
+      }
+    });
+
+    if (currentDetailPostId === event.postId) {
+      if (event.commentCount !== undefined) {
+        document.getElementById('detail-comment-count').textContent = event.commentCount;
+      }
+      appendComment(event.comment);
+    }
+  });
+  socket.on('post:like-count', (event) => {
+    document.querySelectorAll('.post-card').forEach((card) => {
+      if (card.dataset.postId === event.postId) {
+        const count = card.querySelector('.like-count');
+        if (count) count.textContent = event.likeCount;
+      }
+    });
+
+    if (currentDetailPostId === event.postId) {
+      document.getElementById('detail-like-count').textContent = event.likeCount;
+    }
+  });
+  socket.on('notification:new', (notification) => {
+    showToast(notification.message || 'You have a new notification', 'info');
+  });
 
   // --- Initialize ---
   initNavbar();
@@ -201,6 +236,7 @@
   function createPostCard(post, index) {
     const card = document.createElement('div');
     card.className = 'post-card';
+    card.dataset.postId = post.id;
     card.style.animationDelay = `${index * 0.05}s`;
 
     // Thumbnail
@@ -306,13 +342,13 @@
               <svg viewBox="0 0 24 24" fill="${post.liked_by_user ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
               </svg>
-              ${post.like_count}
+              <span class="like-count">${post.like_count}</span>
             </div>
             <div class="stat-item">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
               </svg>
-              ${post.comment_count}
+              <span class="comment-count">${post.comment_count}</span>
             </div>
           </div>
         </div>
@@ -618,6 +654,7 @@
 
   async function openPostDetail(postId) {
     currentDetailPostId = postId;
+    socket.emit('post:join', postId);
     detailModal.classList.add('active');
 
     try {
@@ -625,6 +662,7 @@
       renderPostDetail(post);
       loadComments(postId);
     } catch (err) {
+      socket.emit('post:leave', postId);
       showToast(err.message, 'error');
       detailModal.classList.remove('active');
     }
@@ -720,11 +758,13 @@
 
   // Close detail modal
   document.getElementById('close-detail-modal').addEventListener('click', () => {
+    if (currentDetailPostId) socket.emit('post:leave', currentDetailPostId);
     detailModal.classList.remove('active');
     currentDetailPostId = null;
   });
   detailModal.addEventListener('click', (e) => {
     if (e.target === detailModal) {
+      if (currentDetailPostId) socket.emit('post:leave', currentDetailPostId);
       detailModal.classList.remove('active');
       currentDetailPostId = null;
     }
@@ -756,6 +796,7 @@
 
     try {
       await API.deletePost(currentDetailPostId);
+      socket.emit('post:leave', currentDetailPostId);
       showToast('Post deleted', 'success');
       detailModal.classList.remove('active');
       currentDetailPostId = null;
@@ -777,28 +818,39 @@
         return;
       }
 
-      comments.forEach(comment => {
-        let avatarHtml;
-        if (comment.author_avatar) {
-          avatarHtml = `<div class="mini-avatar"><img src="${comment.author_avatar}" alt=""></div>`;
-        } else {
-          avatarHtml = `<div class="mini-avatar">${getInitial(comment.display_name)}</div>`;
-        }
-
-        const item = document.createElement('div');
-        item.className = 'comment-item';
-        item.innerHTML = `
-          ${avatarHtml}
-          <div class="comment-body">
-            <span class="comment-author">${escapeHtml(comment.display_name)}</span>
-            <div class="comment-text">${escapeHtml(comment.text)}</div>
-            <div class="comment-time">${timeAgo(comment.created_at)}</div>
-          </div>`;
-        list.appendChild(item);
-      });
+      comments.forEach(comment => appendComment(comment, list));
     } catch (err) {
-      // Silently fail
+      console.error('Failed to load comments:', err);
     }
+  }
+
+  function appendComment(comment, list = document.getElementById('comment-list')) {
+    if (!comment || !list) return;
+
+    const commentId = String(comment.id || '');
+    if (commentId && Array.from(list.querySelectorAll('.comment-item'))
+      .some(item => item.dataset.commentId === commentId)) {
+      return;
+    }
+
+    const emptyMessage = list.querySelector('p');
+    if (emptyMessage) emptyMessage.remove();
+
+    const avatarHtml = comment.author_avatar
+      ? `<div class="mini-avatar"><img src="${comment.author_avatar}" alt=""></div>`
+      : `<div class="mini-avatar">${getInitial(comment.display_name)}</div>`;
+
+    const item = document.createElement('div');
+    item.className = 'comment-item';
+    item.dataset.commentId = commentId;
+    item.innerHTML = `
+      ${avatarHtml}
+      <div class="comment-body">
+        <span class="comment-author">${escapeHtml(comment.display_name)}</span>
+        <div class="comment-text">${escapeHtml(comment.text)}</div>
+        <div class="comment-time">${timeAgo(comment.created_at)}</div>
+      </div>`;
+    list.appendChild(item);
   }
 
   // Submit comment
@@ -813,14 +865,17 @@
     if (!text || !currentDetailPostId) return;
 
     try {
-      await API.addComment(currentDetailPostId, text);
+      const comment = await API.addComment(currentDetailPostId, text);
       input.value = '';
+      appendComment(comment);
 
-      // Update comment count
-      const countEl = document.getElementById('detail-comment-count');
-      countEl.textContent = parseInt(countEl.textContent) + 1;
+      try {
+        const updatedPost = await API.getPost(currentDetailPostId);
+        document.getElementById('detail-comment-count').textContent = updatedPost.comment_count;
+      } catch (err) {
+        console.error('Failed to refresh comment count:', err);
+      }
 
-      loadComments(currentDetailPostId);
       showToast('Comment added', 'success');
     } catch (err) {
       showToast(err.message, 'error');
@@ -831,6 +886,7 @@
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       createModal.classList.remove('active');
+      if (currentDetailPostId) socket.emit('post:leave', currentDetailPostId);
       detailModal.classList.remove('active');
       currentDetailPostId = null;
     }

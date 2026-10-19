@@ -12,8 +12,13 @@ const searchRoutes = require('./routes/search');
 const errorHandler = require('./middleware/errorHandler');
 const redisClient = require('./redis');
 const postgres = require('./db-postgres');
+//socket io
+const { createServer } = require('http');
+const attachSocketServer = require('./socket');
+
 
 const app = express();
+const httpServer = createServer(app);
 const PORT = process.env.PORT || 3000;
 
 // Create uploads directory
@@ -35,6 +40,8 @@ app.use('/uploads', express.static(uploadsDir));
 async function startServer() {
   // Connect before creating the Redis-backed rate limiters.
   await redisClient.connect();
+  const io = attachSocketServer(httpServer);
+  app.set('io', io);
 
   const { apiLimiter, authLimiter } = require('./middleware/rateLimiters');
 
@@ -69,9 +76,9 @@ async function startServer() {
   // Error handler must be registered last.
   app.use(errorHandler);
 
-  app.listen(PORT, () => {
-    console.log(`\n🚀 NitrklShare server running at http://localhost:${PORT}\n`);
-  });
+  httpServer.listen(PORT, () => {
+  console.log(`\n🚀 NitrklShare server running at http://localhost:${PORT}\n`);
+    });
 }
 
 startServer().catch((err) => {

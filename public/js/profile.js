@@ -11,6 +11,11 @@
   }
 
   const currentUser = API.getUser();
+  const socket = API.connectSocket();
+  socket.on('notification:new', (notification) => {
+    showToast(notification.message || 'You have a new notification', 'info');
+  });
+
   const urlParams = new URLSearchParams(window.location.search);
   const profileUsername = urlParams.get('user') || currentUser.username;
   const isOwnProfile = profileUsername === currentUser.username;

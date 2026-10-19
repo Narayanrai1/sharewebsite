@@ -10,6 +10,19 @@ const API = {
     return localStorage.getItem('nitrklshare_token');
   },
 
+  connectSocket() {
+    if (!this.socket) {
+      this.socket = window.io({
+        auth: { token: this.getToken() }
+      });
+      this.socket.on('connect_error', (err) => {
+        console.error('Socket connection error:', err.message);
+      });
+    }
+
+    return this.socket;
+  },
+
   setToken(token) {
     localStorage.setItem('nitrklshare_token', token);
   },

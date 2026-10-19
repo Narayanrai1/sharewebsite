@@ -18,6 +18,23 @@
     return;
   }
 
+  const socket = API.connectSocket();
+  socket.on('connect', () => socket.emit('post:join', postId));
+  socket.on('post:comment:new', (event) => {
+    if (event.postId !== postId) return;
+    if (event.commentCount !== undefined) {
+      document.getElementById('comment-count').textContent = event.commentCount;
+    }
+    appendComment(event.comment);
+  });
+  socket.on('post:like-count', (event) => {
+    if (event.postId !== postId) return;
+    document.getElementById('like-count').textContent = event.likeCount;
+  });
+  socket.on('notification:new', (notification) => {
+    showToast(notification.message || 'You have a new notification', 'info');
+  });
+
   // --- Init Navbar ---
   initNavbar();
   loadPost();
@@ -227,28 +244,39 @@
         return;
       }
 
-      comments.forEach(comment => {
-        let avatarHtml;
-        if (comment.author_avatar) {
-          avatarHtml = `<div class="mini-avatar"><img src="${comment.author_avatar}" alt=""></div>`;
-        } else {
-          avatarHtml = `<div class="mini-avatar">${getInitial(comment.display_name)}</div>`;
-        }
-
-        const item = document.createElement('div');
-        item.className = 'comment-item';
-        item.innerHTML = `
-          ${avatarHtml}
-          <div class="comment-body">
-            <span class="comment-author">${escapeHtml(comment.display_name)}</span>
-            <div class="comment-text">${escapeHtml(comment.text)}</div>
-            <div class="comment-time">${timeAgo(comment.created_at)}</div>
-          </div>`;
-        list.appendChild(item);
-      });
+      comments.forEach(comment => appendComment(comment, list));
     } catch (err) {
-      // Silently fail
+      console.error('Failed to load comments:', err);
     }
+  }
+
+  function appendComment(comment, list = document.getElementById('comment-list')) {
+    if (!comment || !list) return;
+
+    const commentId = String(comment.id || '');
+    if (commentId && Array.from(list.querySelectorAll('.comment-item'))
+      .some(item => item.dataset.commentId === commentId)) {
+      return;
+    }
+
+    const emptyMessage = list.querySelector('p');
+    if (emptyMessage) emptyMessage.remove();
+
+    const avatarHtml = comment.author_avatar
+      ? `<div class="mini-avatar"><img src="${comment.author_avatar}" alt=""></div>`
+      : `<div class="mini-avatar">${getInitial(comment.display_name)}</div>`;
+
+    const item = document.createElement('div');
+    item.className = 'comment-item';
+    item.dataset.commentId = commentId;
+    item.innerHTML = `
+      ${avatarHtml}
+      <div class="comment-body">
+        <span class="comment-author">${escapeHtml(comment.display_name)}</span>
+        <div class="comment-text">${escapeHtml(comment.text)}</div>
+        <div class="comment-time">${timeAgo(comment.created_at)}</div>
+      </div>`;
+    list.appendChild(item);
   }
 
   // Submit comment
@@ -268,13 +296,17 @@
     if (!text) return;
 
     try {
-      await API.addComment(postId, text);
+      const comment = await API.addComment(postId, text);
       input.value = '';
+      appendComment(comment);
 
-      const countEl = document.getElementById('comment-count');
-      countEl.textContent = parseInt(countEl.textContent) + 1;
+      try {
+        const updatedPost = await API.getPost(postId);
+        document.getElementById('comment-count').textContent = updatedPost.comment_count;
+      } catch (err) {
+        console.error('Failed to refresh comment count:', err);
+      }
 
-      loadComments();
       showToast('Comment added', 'success');
     } catch (err) {
       showToast(err.message, 'error');
