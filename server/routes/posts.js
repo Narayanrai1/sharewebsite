@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { getCache, setCache } = require('../cache');
 // const { users, posts, likes, comments } = require('../db');
 const pool = require('../db-postgres');
 const { authMiddleware, optionalAuth } = require('../middleware/auth');
@@ -156,7 +157,6 @@ router.post('/', authMiddleware, uploadFields, async (req, res) => {
 });
 
 // Get feed (sorted by most likes)
-// Get feed (sorted by most likes)
 router.get('/feed', optionalAuth, async (req, res) => {
   try {
     const requestedPage = parseInt(req.query.page, 10) || 1;
@@ -166,6 +166,16 @@ router.get('/feed', optionalAuth, async (req, res) => {
     const limit = Math.min(Math.max(requestedLimit, 1), 50);
     const offset = (page - 1) * limit;
     const userId = req.user ? req.user.id : null;
+
+    // Cache only public feed pages.
+    const cacheKey = `feed:v1:page:${page}:limit:${limit}`;
+
+    if (!userId) {
+      const cached = await getCache(cacheKey);
+      if (cached) {
+        return res.json(cached);
+      }
+    }
 
     const countResult = await pool.query(
       `SELECT COUNT(*) AS total
@@ -191,12 +201,18 @@ router.get('/feed', optionalAuth, async (req, res) => {
 
     const total = Number(countResult.rows[0].total);
 
-    res.json({
+    const responseData = {
       posts: postsResult.rows,
       page,
       total_pages: Math.ceil(total / limit),
       total
-    });
+    };
+
+    if (!userId) {
+      await setCache(cacheKey, responseData, 30);
+    }
+
+    res.json(responseData);
   } catch (err) {
     console.error('Feed error:', err);
     res.status(500).json({ error: 'Server error' });
